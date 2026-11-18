@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "app_id": "app_83cad52b-58b6-4ff9-b180-12d0b6f2dae1",
+      "org_id": "user_40d9b32b-7c67-4262-8955-99bd370ddd97",
+      "deploy_url": "https://push-n3-par-clevercloud-customers.services.clever-cloud.com/app_83cad52b-58b6-4ff9-b180-12d0b6f2dae1.git",
+      "git_ssh_url": "git+ssh://git@push-n3-par-clevercloud-customers.services.clever-cloud.com/app_83cad52b-58b6-4ff9-b180-12d0b6f2dae1.git",
+      "name": "crabelink",
+      "alias": "crabelink"
+    }
+  ]
+}
