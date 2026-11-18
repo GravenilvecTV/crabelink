@@ -48,6 +48,10 @@ async fn main() {
         .expect("échec des migrations");
 
     let app = Router::new()
+        .route(
+            "/",
+            get(|| async { "Bienvenue sur CrabeLink ! Raccourcis un lien avec POST /shorten" }),
+        )
         .route("/shorten", post(raccourcir))
         .route("/{code}", get(rediriger))
         .with_state(pool);
