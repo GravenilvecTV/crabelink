@@ -1,0 +1,5 @@
+CREATE TABLE liens (
+    code TEXT PRIMARY KEY,
+    url TEXT NOT NULL,
+    cree_le TIMESTAMPTZ NOT NULL DEFAULT now()
+);

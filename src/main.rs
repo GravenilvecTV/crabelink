@@ -1,8 +1,3 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
-
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -11,9 +6,8 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use tracing_subscriber::EnvFilter;
-
-type Liens = Arc<Mutex<HashMap<String, String>>>;
 
 #[derive(Deserialize)]
 struct NouveauLien {
@@ -36,12 +30,22 @@ async fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
         .init();
 
-    let liens: Liens = Arc::new(Mutex::new(HashMap::new()));
+    let database_url = std::env::var("DATABASE_URL")
+        .or_else(|_| std::env::var("POSTGRESQL_ADDON_URI"))
+        .expect("DATABASE_URL ou POSTGRESQL_ADDON_URI doit être défini");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("connexion à PostgreSQL impossible");
+
+    sqlx::migrate!().run(&pool).await.expect("échec des migrations");
 
     let app = Router::new()
         .route("/shorten", post(raccourcir))
         .route("/{code}", get(rediriger))
-        .with_state(liens);
+        .with_state(pool);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}"))
@@ -52,7 +56,7 @@ async fn main() {
 }
 
 async fn raccourcir(
-    State(liens): State<Liens>,
+    State(pool): State<PgPool>,
     Json(body): Json<NouveauLien>,
 ) -> Result<(StatusCode, Json<LienCourt>), StatusCode> {
     let url = body.url.trim().to_string();
@@ -60,21 +64,32 @@ async fn raccourcir(
         return Err(StatusCode::BAD_REQUEST);
     }
     let code = nanoid::nanoid!(6);
-    liens.lock().unwrap().insert(code.clone(), url.clone());
+    sqlx::query("INSERT INTO liens (code, url) VALUES ($1, $2)")
+        .bind(&code)
+        .bind(&url)
+        .execute(&pool)
+        .await
+        .map_err(erreur_interne)?;
     tracing::info!("nouveau lien court : {code}");
     Ok((StatusCode::CREATED, Json(LienCourt { code, url })))
 }
 
 async fn rediriger(
-    State(liens): State<Liens>,
+    State(pool): State<PgPool>,
     Path(code): Path<String>,
 ) -> Result<Redirect, StatusCode> {
-    liens
-        .lock()
-        .unwrap()
-        .get(&code)
-        .map(|url| Redirect::temporary(url))
+    let url = sqlx::query_scalar::<_, String>("SELECT url FROM liens WHERE code = $1")
+        .bind(&code)
+        .fetch_optional(&pool)
+        .await
+        .map_err(erreur_interne)?;
+    url.map(|url| Redirect::temporary(&url))
         .ok_or(StatusCode::NOT_FOUND)
+}
+
+fn erreur_interne(e: sqlx::Error) -> StatusCode {
+    tracing::error!("erreur base de données : {e}");
+    StatusCode::INTERNAL_SERVER_ERROR
 }
 
 #[cfg(test)]
