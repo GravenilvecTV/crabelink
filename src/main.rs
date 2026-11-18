@@ -1,12 +1,12 @@
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::Redirect,
     routing::{get, post},
-    Json, Router,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{PgPool, postgres::PgPoolOptions};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Deserialize)]
@@ -27,7 +27,9 @@ fn lien_valide(url: &str) -> bool {
 #[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
+        )
         .init();
 
     let database_url = std::env::var("DATABASE_URL")
@@ -40,7 +42,10 @@ async fn main() {
         .await
         .expect("connexion à PostgreSQL impossible");
 
-    sqlx::migrate!().run(&pool).await.expect("échec des migrations");
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("échec des migrations");
 
     let app = Router::new()
         .route("/shorten", post(raccourcir))
